@@ -14,11 +14,11 @@ TEMPEXE=tests.exe
 # A temporary file tests.exe is created in the folder
 
 # Compile everything with -fprofile-arcs -ftest-coverage
-make "CFLAGS=-fprofile-arcs -ftest-coverage" re
-gcc -fprofile-arcs -ftest-coverage $MAINFILE -l:$LIBRARY  -Iinclude -o $TEMPEXE
+make "CFLAGS=-ggdb3 -fprofile-arcs -ftest-coverage" re
+gcc -ggdb3 -fprofile-arcs -ftest-coverage $MAINFILE -l:$LIBRARY  -Iinclude -o $TEMPEXE
 
 # Run the file and run gcov
-valgrind ./$TEMPEXE
+valgrind --leak-check=full --show-reachable=yes --track-origins=yes ./$TEMPEXE
 gcov src/*.gcda
 
 # Remove temporary gcov files and the executable
