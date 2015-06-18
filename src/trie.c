@@ -66,7 +66,7 @@ static int	trie_delete_child(t_trie *trie, t_trie *child)
       (nth = diff / sizeof(t_trie)) > child->nb_children - 1)
     return (1);
   if (nth < trie->nb_children)
-    memmove(child, child + 1, sizeof(t_trie) * (trie->nb_children - (nth + 1)));
+    memmove(child, child + 1, sizeof(t_trie) * (trie->nb_children - nth - 1));
   --trie->nb_children;
   return (0);
 }
