@@ -65,7 +65,8 @@ static int	trie_delete_child(t_trie *trie, t_trie *child)
   if (diff < 0 || diff % sizeof(t_trie) ||
       (nth = diff / sizeof(t_trie)) > child->nb_children - 1)
     return (1);
-  memmove(trie->children, child + 1, sizeof(t_trie *) * nth - 1);
+  if (nth < trie->nb_children)
+    memmove(child, child + 1, sizeof(t_trie) * (trie->nb_children - (nth + 1)));
   --trie->nb_children;
   return (0);
 }
@@ -186,26 +187,30 @@ void		*trie_get_value(t_trie *trie, const char *key)
 int		trie_delete_key(t_trie *trie, const char *key)
 {
   t_trie	*current;
+  t_trie	*parent;
   size_t	i;
 
   if (!*key)
     {
       if (!trie->marker)
 	return (1);
-      if (!trie->nb_children)
+      trie->marker = false;
+      if (trie->nb_children == 0)
 	{
+	  /* Delete all unused nodes */
 	  current = trie;
 	  while (current->parent && current->parent->nb_children == 1 &&
-		 !current->marker)
+		 !current->parent->marker)
 	    current = current->parent;
+	  parent = current->parent;
 	  trie_delete(current);
-	  if (current->parent)
-	    trie_delete_child(current->parent, current);
+	  if (parent)
+	    trie_delete_child(parent, current);
 	}
       return (0);
     }
   for (i = 0 ; i < trie->nb_children ; ++i)
     if (trie->children[i].letter == *key)
       return (trie_delete_key(&trie->children[i], key + 1));
-  return (0);
+  return (1);
 }
