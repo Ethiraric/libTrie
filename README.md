@@ -30,9 +30,10 @@ It will delete temporary or unnecessary files and move gcov output to tests/
 
 Compile your program as follow :
 
-    gcc [files] -Lpath/to/library -lTrie [flags]
+    gcc [files] -Lpath/to/library -lTrie -Ipath/to/includes [flags]
 
-Or add `-Lpath/to/library -lTrie` to the LD_FLAGS of your Makefile
+Or add `-Lpath/to/library -lTrie` to the LD_FLAGS of your Makefile and
+`-Ipath/to/includes` to your CFLAGS
 
 ## Bugs and Suggestions
 
