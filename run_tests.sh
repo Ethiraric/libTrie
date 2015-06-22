@@ -14,7 +14,7 @@ TEMPEXE=tests.exe
 # A temporary file tests.exe is created in the folder
 
 # Compile everything with -fprofile-arcs -ftest-coverage
-make "CFLAGS=-ggdb3 -fprofile-arcs -ftest-coverage" re
+make "CFLAGS=-ggdb3 -fprofile-arcs -ftest-coverage -DTRAVERSAL_KEY_STEP=1" re
 gcc -ggdb3 -fprofile-arcs -ftest-coverage $MAINFILE -l:$LIBRARY  -Iinclude -o $TEMPEXE
 
 # Run the file and run gcov

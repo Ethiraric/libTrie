@@ -30,11 +30,16 @@ struct	s_trie
   bool		marker;		// Marks the end of a word
 };
 
-void		trie_init(t_trie *trie);
-void		trie_delete(t_trie *trie);
-int		trie_insert(t_trie *trie, const char *key, void *value);
-bool		trie_key_exists(t_trie *trie, const char *key);
-void		*trie_get_value(t_trie *trie, const char *key);
-int		trie_delete_key(t_trie *trie, const char *key);
+void	trie_init(t_trie *trie);
+void	trie_delete(t_trie *trie);
+int	trie_insert(t_trie *trie, const char *key, void *value);
+bool	trie_key_exists(t_trie *trie, const char *key);
+void	*trie_get_value(t_trie *trie, const char *key);
+int	trie_delete_key(t_trie *trie, const char *key);
+void	trie_sort(t_trie *trie);
+int	trie_traversal_preorder(
+    t_trie *trie, int (*fct)(const char *, void *, void *), void *data);
+int	trie_traversal_postorder(
+    t_trie *trie, int (*fct)(const char *, void *, void *), void *data);
 
 #endif /* !TRIE_H_ */

@@ -16,10 +16,12 @@
 
 /*
 ** The step in allocation of the children member of t_trie
-** A higher value may make the trie faster, but may need more memory
+** A higher value may make insertions faster, but may need more memory
 ** This should never be more than 255 or less than 1
 */
-#define TRIE_ALLOC_STEP		10
+#ifndef TRIE_ALLOC_STEP
+# define TRIE_ALLOC_STEP	10
+#endif
 
 #if TRIE_ALLOC_STEP > 255
 # warning "TRIE_ALLOC_STEP > 255 : setting to 255"
@@ -31,6 +33,33 @@
 # undef TRIE_ALLOC_STEP
 # define TRIE_ALLOC_STEP	1
 #endif
+
+/*
+** The step in allocation of the key for traversal functions
+** A higher value may make the traversal faster, but may need more memory
+** This should never be less than 1
+*/
+#ifndef TRAVERSAL_KEY_STEP
+# define TRAVERSAL_KEY_STEP	1024
+#endif
+
+#if TRAVERSAL_KEY_STEP < 1
+# warning "TRAVERSAL_KEY_STEP < 1 : setting to 1"
+# undef TRAVERSAL_KEY_STEP
+# define TRAVERSAL_KEY_STEP	1
+#endif
+
+/*
+** Predicate to be passed to qsort to compare two nodes
+** Nodes must be siblings
+*/
+static int	trie_qsort_predicate(const void *vlhs, const void *vrhs)
+{
+  t_trie	*lhs = (t_trie *)(vlhs);
+  t_trie	*rhs = (t_trie *)(vrhs);
+
+  return (lhs->letter - rhs->letter);
+}
 
 /*
 ** Reallocates the children member of trie so it can hold newsize t_trie
@@ -59,6 +88,7 @@ static int	trie_realloc_children(t_trie *trie, size_t newsize)
 static int	trie_delete_child(t_trie *trie, t_trie *child)
 {
   unsigned int	nth;
+  unsigned int	i;
   ptrdiff_t	diff;
 
   diff = (char *)(child) - (char *)(trie->children);
@@ -68,6 +98,73 @@ static int	trie_delete_child(t_trie *trie, t_trie *child)
   if (nth < trie->nb_children)
     memmove(child, child + 1, sizeof(t_trie) * (trie->nb_children - nth - 1));
   --trie->nb_children;
+  for (; nth < trie->nb_children ; ++nth)
+    for (i = 0 ; i < trie->children[nth].nb_children ; ++i)
+      trie->children[nth].children[i].parent = trie->children + nth;
+  return (0);
+}
+
+/*
+** The recursion function for pre order traversal
+** See trie_traversal_preorder for more informations
+*/
+int	trie_traversal_preorder_recur(
+    t_trie *trie, int (*fct)(const char *, void *, void *), void *data,
+    char **key, size_t depth, size_t keylen)
+{
+  size_t	i;
+  char		*tmp;
+
+  if (depth >= keylen)
+    {
+      keylen += TRAVERSAL_KEY_STEP;
+      tmp = realloc(*key, keylen + 1);
+      if (!tmp)
+	return (1);
+      *key = tmp;
+      memset((*key) + depth, 0, keylen + 1 - depth);
+    }
+  (*key)[depth] = trie->letter;
+  if (trie->marker)
+    if (fct(*key, trie->value, data))
+      return (1);
+  for (i = 0 ; i < trie->nb_children ; ++i)
+    if (trie_traversal_preorder_recur(&trie->children[i], fct, data, key,
+				      depth + 1, keylen))
+      return (1);
+  (*key)[depth] = '\0';
+  return (0);
+}
+
+/*
+** The recursion function for post order traversal
+** See trie_traversal_postorder for more informations
+*/
+int	trie_traversal_postorder_recur(
+    t_trie *trie, int (*fct)(const char *, void *, void *), void *data,
+    char **key, size_t depth, size_t keylen)
+{
+  size_t	i;
+  char		*tmp;
+
+  if (depth >= keylen)
+    {
+      keylen += TRAVERSAL_KEY_STEP;
+      tmp = realloc(*key, keylen + 1);
+      if (!tmp)
+	return (1);
+      *key = tmp;
+      memset((*key) + depth, 0, keylen + 1 - depth);
+    }
+  (*key)[depth] = trie->letter;
+  for (i = 0 ; i < trie->nb_children ; ++i)
+    if (trie_traversal_postorder_recur(&trie->children[i], fct, data, key,
+				       depth + 1, keylen))
+      return (1);
+  if (trie->marker)
+    if (fct(*key, trie->value, data))
+      return (1);
+  (*key)[depth] = '\0';
   return (0);
 }
 
@@ -87,7 +184,7 @@ void		trie_init(t_trie *trie)
 
 /*
 ** Deletes all resources allocated by the trie
-** Does not delete the trie itself
+** Does not free the trie pointer passed in parameter
 */
 void		trie_delete(t_trie *trie)
 {
@@ -96,7 +193,6 @@ void		trie_delete(t_trie *trie)
   for (i = 0 ; i < trie->nb_children ; ++i)
     trie_delete(&trie->children[i]);
   free(trie->children);
-  trie_init(trie);
 }
 
 /*
@@ -213,4 +309,82 @@ int		trie_delete_key(t_trie *trie, const char *key)
     if (trie->children[i].letter == *key)
       return (trie_delete_key(&trie->children[i], key + 1));
   return (1);
+}
+
+/*
+** Sorts contents in the trie
+** This does NOT make the trie faster
+** It may only be useful if you want to order before traversal
+** It uses qsort from stdlib
+*/
+void		trie_sort(t_trie *trie)
+{
+  size_t	i;
+
+  if (trie->nb_children > 1)
+    qsort(trie->children, trie->nb_children, sizeof(t_trie),
+	  &trie_qsort_predicate);
+  for (i = 0 ; i < trie->nb_children ; ++i)
+    trie_sort(&trie->children[i]);
+}
+
+/*
+** Traverses the trie using pre order traversal
+** Children are called from the first to the last (use trie_sort if you need
+** them sorted by ascii value)
+** fct is a function that will be called with the following parameters :
+** - The key
+** - The value
+** - The data (third parameter passed to trie_traversal_preorder)
+** fct is expected to return 0 on success, or a non-zero integer on failure
+** When fct fails, the traversal immediately stops, and trie_traversal_preorder
+** returns a non-zero integer.
+** Returns 0 on success, a non-zero integer on failure
+** Possible Errors :
+** - fct returned non-zero
+** - ENOMEM : no more memory available
+*/
+int	trie_traversal_preorder(
+    t_trie *trie, int (*fct)(const char *, void *, void *), void *data)
+{
+  size_t	i;
+  char		*key;
+
+  key = malloc(TRAVERSAL_KEY_STEP);
+  memset(key, 0, TRAVERSAL_KEY_STEP);
+  if (!key)
+    return (1);
+  for (i = 0 ; i < trie->nb_children ; ++i)
+    if (trie_traversal_preorder_recur(&trie->children[i], fct, data, &key, 0,
+				      TRAVERSAL_KEY_STEP))
+      {
+	free(key);
+	return (1);
+      }
+  free(key);
+  return (0);
+}
+
+/*
+** Same as trie_traversal_preorder but using postorder instead
+*/
+int	trie_traversal_postorder(
+    t_trie *trie, int (*fct)(const char *, void *, void *), void *data)
+{
+  size_t	i;
+  char		*key;
+
+  key = malloc(TRAVERSAL_KEY_STEP);
+  memset(key, 0, TRAVERSAL_KEY_STEP);
+  if (!key)
+    return (1);
+  for (i = 0 ; i < trie->nb_children ; ++i)
+    if (trie_traversal_postorder_recur(&trie->children[i], fct, data, &key, 0,
+				       TRAVERSAL_KEY_STEP))
+      {
+	free(key);
+	return (1);
+      }
+  free(key);
+  return (0);
 }
