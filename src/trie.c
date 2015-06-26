@@ -322,10 +322,17 @@ void		trie_sort(t_trie *trie)
   size_t	i;
 
   if (trie->nb_children > 1)
-    qsort(trie->children, trie->nb_children, sizeof(t_trie),
-	  &trie_qsort_predicate);
-  for (i = 0 ; i < trie->nb_children ; ++i)
-    trie_sort(&trie->children[i]);
+    {
+      qsort(trie->children, trie->nb_children, sizeof(t_trie),
+	    &trie_qsort_predicate);
+      for (i = 0 ; i < trie->nb_children ; ++i)
+	{
+	  trie->children[i].parent = trie;
+	  trie_sort(&trie->children[i]);
+	}
+    }
+  else if (trie->nb_children == 1)
+    trie_sort(&trie->children[0]);
 }
 
 /*
